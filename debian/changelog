@@ -1,3 +1,9 @@
+ruote-amqp-pyclient (1.11) unstable; urgency=low
+
+  * New version.
+
+ -- Islam Amer <iamer@solitude>  Sun, 31 Oct 2010 21:47:32 +0200
+
 ruote-amqp-pyclient (1.1) unstable; urgency=low
 
   * updated packaging.
