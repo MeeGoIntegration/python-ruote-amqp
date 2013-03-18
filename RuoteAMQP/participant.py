@@ -167,13 +167,10 @@ class Participant(object):
         consumer.start()
         consumer.join()
         if consumer.exception:
-            # Note: the mechanism below is different than the one
-            # ruote-beanstalk uses. That sends the message in an array
-            # where the first element indicates the message type
-            # (workitem or error)
 
-            self.workitem.error = format_exception(consumer.exception)
-            self.workitem.trace = format_ruby_backtrace(consumer.trace)
+            self.workitem.error = { "class"   : "Ruote::Amqp::RemoteError",
+                                    "message" : format_exception(consumer.exception),
+                                    "trace"   : format_ruby_backtrace(consumer.trace) }
 
         # Acknowledge the message as received
         self._chan.basic_ack(tag)
