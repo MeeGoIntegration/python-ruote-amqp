@@ -36,3 +36,5 @@ rm -rf $RPM_BUILD_ROOT
 %files -f INSTALLED_FILES
 %defattr(-,root,root)
 %{python_sitelib}/RuoteAMQP
+# setuptools/setup --record misses this directory in Suse 0.15
+%{python_sitelib}/ruote_amqp*egg-info
