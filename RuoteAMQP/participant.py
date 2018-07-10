@@ -163,14 +163,17 @@ class Participant(object):
 
         # Launch consume() in separate thread so it doesn't get interrupted by
         # signals
-        consumer = ConsumerThread(self)
-        consumer.start()
-        consumer.join()
-        if consumer.exception:
+        if not self.workitem.is_cancel:
+            consumer = ConsumerThread(self)
+            consumer.start()
+            consumer.join()
+            if consumer.exception:
 
-            self.workitem.error = { "class"   : "Ruote::Amqp::RemoteError",
-                                    "message" : format_exception(consumer.exception),
-                                    "trace"   : format_ruby_backtrace(consumer.trace) }
+                self.workitem.error = { "class"   : "Ruote::Amqp::RemoteError",
+                                        "message" : format_exception(consumer.exception),
+                                        "trace"   : format_ruby_backtrace(consumer.trace) }
+        else:
+            self.log.warning("Ignoring a cancel message")
 
         # Acknowledge the message as received
         self._chan.basic_ack(tag)
