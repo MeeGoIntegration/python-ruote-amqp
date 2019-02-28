@@ -16,11 +16,11 @@
 
 """ Abstract participant class """
 
-from __future__ import with_statement
+
 import sys
 import traceback
 from threading import Thread
-from urllib2 import HTTPError
+from urllib.error import HTTPError
 from amqplib import client_0_8 as amqp
 from RuoteAMQP.workitem import Workitem
 import logging
@@ -99,7 +99,7 @@ class ConsumerThread(Thread):
                             self.__participant.workitem.wf_name))
             self.log.error(format_block(traceback.format_exc()))
             self.exception = exobj
-            self.trace = traceback.extract_tb(sys.exc_traceback)
+            self.trace = traceback.extract_tb(sys.exc_info()[2])
 
 
 class Participant(object):

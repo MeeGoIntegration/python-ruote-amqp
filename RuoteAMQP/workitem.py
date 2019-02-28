@@ -44,7 +44,7 @@ class DictAttrProxy(object):
         return self._d.__iter__()
 
     def __next__(self):
-        r = self._d.next()
+        r = next(self._d)
         if type(r) is dict:
             return DictAttrProxy(r)
         return r

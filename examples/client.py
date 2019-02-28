@@ -15,12 +15,12 @@ class MyPart(Participant):
     def consume(self):
         # We have a workitem passed to us
         wi = self.workitem
-        print "Got a workitem:"
-        print json.dumps(wi.to_h(), indent=4)
+        print("Got a workitem:")
+        print(json.dumps(wi.to_h(), indent=4))
 
         # we do something:
         size=random.randint(500,1000)
-        print "\nSize is %s" % size
+        print("\nSize is %s" % size)
 
         # Write it into the workitem
         wi.set_field("image.size", size)
@@ -30,7 +30,7 @@ class MyPart(Participant):
 
 
 # Now to start a participant (this could be in a 
-print "Started a python participant"
+print("Started a python participant")
 p = MyPart(ruote_queue="sizer", amqp_host="amqpvm", amqp_vhost="ruote-test")
 p.register("sizer", {'queue':'sizer'})
 p.run()
