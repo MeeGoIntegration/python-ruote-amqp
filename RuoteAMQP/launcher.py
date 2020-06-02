@@ -66,8 +66,8 @@ class Launcher(object):
             raise TypeError("variables should be type dict")
         pdef = {
             "definition": process,
-            "fields" : fields,
-            "variables" : variables
+            "fields": fields,
+            "variables": variables
             }
         # Encode the message as json
         msg = amqp.Message(json.dumps(pdef))

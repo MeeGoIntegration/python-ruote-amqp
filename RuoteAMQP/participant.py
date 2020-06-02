@@ -1,4 +1,3 @@
-#!/usr/bin/python2.6
 # Copyright (C) 2010 Nokia Corporation and/or its subsidiary(-ies).
 # Contact: David Greaves <ext-david.greaves@nokia.com>
 # This program is free software: you can redistribute it and/or modify
@@ -175,9 +174,10 @@ class Participant(object):
             consumer.join()
             if consumer.exception:
 
-                self.workitem.error = { "class"   : "Ruote::Amqp::RemoteError",
-                                        "message" : format_exception(consumer.exception),
-                                        "trace"   : format_ruby_backtrace(consumer.trace) }
+                self.workitem.error = {
+                    "class":   "Ruote::Amqp::RemoteError",
+                    "message": format_exception(consumer.exception),
+                    "trace":   format_ruby_backtrace(consumer.trace)}
         else:
             self.log.warning("Ignoring a cancel message")
 
@@ -206,9 +206,9 @@ class Participant(object):
                     self._running = True
                     while self._running:
                         self._chan.wait()
-        except:
+        except Exception as e:
             self._running = False
-            raise
+            raise e
 
     def finish(self):
         """

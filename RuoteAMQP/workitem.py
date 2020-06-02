@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 try:
     import json
 except ImportError:
@@ -190,7 +188,7 @@ class Workitem(object):
         """
         try:
             return self._h['participant_name']
-        except:
+        except IndexError:
             return None
 
     @property
@@ -198,7 +196,7 @@ class Workitem(object):
         "Returns the payload, ie the fields hash."
         try:
             return DictAttrProxy(self._h['fields'])
-        except:
+        except IndexError:
             return DictAttrProxy({})
 
     @fields.setter
@@ -235,7 +233,7 @@ class Workitem(object):
         try:
             if self.params.forget:
                 return True
-        except:
+        except Exception:
             pass
         return False
 
@@ -362,7 +360,7 @@ class Workitem(object):
         """
         try:
             return DictAttrProxy(self._h['fields']['params'])
-        except:
+        except IndexError:
             return DictAttrProxy({})
 
     def dump(self):
