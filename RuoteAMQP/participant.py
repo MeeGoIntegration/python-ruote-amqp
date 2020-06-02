@@ -15,14 +15,15 @@
 
 """ Abstract participant class """
 
-
 import sys
 import traceback
 from threading import Thread
+import functools
 from urllib.error import HTTPError
-from amqplib import client_0_8 as amqp
+import pika
 from RuoteAMQP.workitem import Workitem
 import logging
+import time
 
 logging.basicConfig(format='%(asctime)s %(name)s %(levelname)s: %(message)s',
                     level=logging.INFO)
@@ -74,17 +75,24 @@ def format_block(msg):
 
 
 class ConsumerThread(Thread):
-    """Thread for running the Participant.consume()"""
-    def __init__(self, participant):
+    """Thread for running the Participant.consume(wi)"""
+    def __init__(self, participant, delivery_tag, workitem):
+        """
+        Pass in the participant and the tag for the message
+        this thread is handling
+        """
         super(ConsumerThread, self).__init__()
         self.__participant = participant
+        self.delivery_tag = delivery_tag
+        self.workitem = workitem
         self.exception = None
         self.trace = None
         self.log = logging.getLogger(__name__)
 
     def run(self):
         try:
-            self.__participant.consume()
+            # Run the actual code for the workitem
+            self.__participant.consume(self.workitem)
         except Exception as exobj:
             # This should be configureable:
             self.log.error("Exception in participant %s\n"
@@ -93,106 +101,148 @@ class ConsumerThread(Thread):
                            " functional.\n"
                            "Error is being signalled to the workflow (unless"
                            " this workitem is 'forgotten').\n" %
-                           (self.__participant.workitem.participant_name,
-                            self.__participant.workitem.wfid,
-                            self.__participant.workitem.wf_name))
-            self.log.error(format_block(traceback.format_exc()))
+                           (self.workitem.participant_name,
+                            self.workitem.wfid,
+                            self.workitem.wf_name))
+            self.log.debug(format_block(traceback.format_exc()))
             self.exception = exobj
             self.trace = traceback.extract_tb(sys.exc_info()[2])
+
+            self.workitem.error = {
+                "class": "BOSS::RemoteError",
+                "message": format_exception(self.exception),
+                "trace": format_ruby_backtrace(self.trace)}
+
+        # Acknowledge the message as received *after* it has been processed
+        self.__participant.ack_message_from_a_thread(self.delivery_tag)
+
+        if not self.workitem.forget:
+            self.__participant.reply_to_engine_from_thread(self.workitem)
 
 
 class Participant(object):
     """
     A Participant will do work in a Ruote process. Participant is
     essentially abstract and must be subclassed to provide a useful
-    consume() method.
+    consume(wi) method.
 
     Workitems arrive via AMQP, are processed and returned to the Ruote engine.
 
     Cancel is not yet implemented.
     """
-
+    # Threaded pika consumer
+    # https://github.com/pika/pika/blob/master/examples/basic_consumer_threaded.py
     def __init__(self, ruote_queue,
                  amqp_host="localhost", amqp_user="ruote",
                  amqp_pass="ruote", amqp_vhost="ruote"):
 
+        if ":" in amqp_host:
+            (amqp_host, port) = amqp_host.split(":")
         self._conn_params = dict(
-                host=amqp_host, userid=amqp_user, password=amqp_pass,
-                virtual_host=amqp_vhost, insist=False)
-        self._chan = None
+            host=amqp_host,
+            virtual_host=amqp_vhost,
+            heartbeat=5,
+            credentials=pika.PlainCredentials(amqp_user, amqp_pass)
+            )
+        self._connection = None
+        self._channel = None
+        # If we reconnect then use the same channel so an ack can be sent back
+        self._channel_number = None
         self._queue = ruote_queue
         self._consumer_tag = None
         self._running = False
-        self.workitem = None
         self.log = logging.getLogger(__name__)
+        self.log.info("params=%s" % self._conn_params)
 
-    def _open_channel(self, connection):
-        """Open and initialize the amqp channel."""
-        if self._chan is None or not self._chan.is_open:
-            self._chan = connection.channel()
-            # set qos option on this channel with prefetch count 1 whole
-            # message of any size
-            self._chan.basic_qos(0, 1, False)
-            # Declare a shareable queue for the participant
-            self._chan.queue_declare(
-                    queue=self._queue, durable=True, exclusive=False,
-                    auto_delete=False)
-            # Currently ruote-amqp uses the anonymous direct exchange
-            # self._chan.exchange_declare(
-            #       exchange="", type="direct",
-            #       durable=True, auto_delete=False)
-            # Bind our queue using a routing key of our queue name
-            # self._chan.queue_bind(
-            #        queue=self._queue, exchange="", routing_key=self._queue)
-            # and set a callback for workitems
-            self._consumer_tag = self._chan.basic_consume(
-                    queue=self._queue, no_ack=False,
-                    callback=self.workitem_callback)
-        return self._chan
-
-    def workitem_callback(self, msg):
+    def consume(self, workitem):
         """
-        This is where a workitem message is handled
-        """
-        tag = msg.delivery_info["delivery_tag"]
-        try:
-            self.workitem = Workitem(msg.body)
-        except ValueError as exobj:
-            # Reject and don't requeue the message
-            self._chan.basic_reject(tag, False)
-            self.log.warning("Exception decoding incoming json\n"
-                             "%s\n"
-                             "Note: Now re-raising exception\n" %
-                             format_block(msg.body))
-            raise exobj
-
-        # Launch consume() in separate thread so it doesn't get interrupted by
-        # signals
-        if not self.workitem.is_cancel:
-            consumer = ConsumerThread(self)
-            consumer.start()
-            consumer.join()
-            if consumer.exception:
-
-                self.workitem.error = {
-                    "class":   "Ruote::Amqp::RemoteError",
-                    "message": format_exception(consumer.exception),
-                    "trace":   format_ruby_backtrace(consumer.trace)}
-        else:
-            self.log.warning("Ignoring a cancel message")
-
-        # Acknowledge the message as received
-        self._chan.basic_ack(tag)
-
-        if not self.workitem.forget:
-            self.reply_to_engine()
-
-    def consume(self):
-        """
-        Override the consume() method in a subclass to do useful work.
-        The workitem attribute contains a Workitem.
+        Override the consume(wi) method in a subclass to do useful work.
+        The workitem is passed back by the worker thread.
         """
         pass
+
+    # Handle the message
+    def workitem_callback(self, chan, method, properties, body):
+        """
+        This is where a workitem message is handled
+        channel: pika.Channel
+        method: pika.spec.Basic.Deliver
+        properties: pika.spec.BasicProperties
+        body: bytes
+        """
+        tag = method.delivery_tag
+        self._consumer_tag = method.consumer_tag
+        try:
+            workitem = Workitem(body)
+        except ValueError as exobj:
+            # Reject and don't requeue the message
+            chan.basic_reject(delivery_tag=tag, requeue=False)
+            self.log.error("Exception decoding incoming json\n"
+                           "%s\n"
+                           "Note: Now re-raising exception\n" %
+                           format_block(body))
+            raise exobj
+
+        # Launch consume(wi) in separate thread so it doesn't get
+        # interrupted by signals and allows the connection to keep
+        # heartbeating
+        if not workitem.is_cancel:
+            self.consumer = ConsumerThread(self, tag, workitem)
+            self.consumer.start()
+            self.log.info("Consumer running")
+        else:
+            self.log.warning("Ignoring a cancel message")
+            self._ack_message_cb(tag)
+
+    # This method is called from the worker thread
+    def ack_message_from_a_thread(self, delivery_tag):
+        if not (self._connection and self._connection.is_open):
+            self.log.error("Connection has gone away"
+                           "- message cannot be ack'ed :(")
+        else:
+            cb = functools.partial(self._ack_message_cb, delivery_tag)
+            self._connection.add_callback_threadsafe(cb)
+
+    # This method is called by the pika thread
+    def _ack_message_cb(self, delivery_tag):
+        try:
+            self._channel.basic_ack(delivery_tag)
+        except pika.ChannelClosed:
+            self.log.error("Channel was closed. message cannot be ack'ed :(")
+
+    def reply_to_engine_from_thread(self, workitem):
+        """
+        When the job is complete the workitem is passed back to the
+        ruote engine.  The consume() method should set the
+        workitem.result() if required.
+        """
+        msg = json.dumps(workitem.to_h())
+
+        # Get the pika thread to send the msg
+        cb = functools.partial(self._reply_to_engine_cb, msg)
+        while not (self._connection and self._connection.is_open):
+            self.log.debug("Waiting for connection to recover"
+                           "to reply to engine")
+            time.sleep(5)
+        self._connection.add_callback_threadsafe(cb)
+
+    def _reply_to_engine_cb(self, msg):
+        while not (self._channel and self._channel.is_open):
+            self.log.debug("Waiting for channel to recover to"
+                           " reply to engine")
+            time.sleep(5)
+
+        # delivery_mode=2 is persistent
+        props = pika.BasicProperties(content_type='text/plain',
+                                     delivery_mode=2)
+
+        # Publish the message.
+        # Notice that this is sent to the anonymous/'' exchange (which is
+        # different to 'amq.direct') with a routing_key for the queue
+        self._channel.basic_publish(exchange='',
+                                    routing_key='ruote_workitems',
+                                    body=msg,
+                                    properties=props)
 
     def run(self):
         """
@@ -200,41 +250,67 @@ class Participant(object):
         """
         if self._running:
             raise RuntimeError("Participant already running")
-        try:
-            with amqp.Connection(**self._conn_params) as conn:
-                with self._open_channel(conn):
-                    self._running = True
-                    while self._running:
-                        self._chan.wait()
-        except Exception as e:
-            self._running = False
-            raise e
+
+        while True:
+            try:
+                self._connection = pika.BlockingConnection(
+                    pika.ConnectionParameters(**self._conn_params))
+                # _channel_number is None first time - then we
+                # remember and use the assigned value on subsequent
+                # calls
+                self._channel = self._connection.channel(self._channel_number)
+                self._channel_number = self._channel.channel_number
+                # set qos option on this channel with prefetch count 1 whole
+                # message of any size.
+
+                # prefetch_count essentially controls the
+                # 'threadedness' of the participant
+                self._channel.basic_qos(prefetch_size=0,
+                                        prefetch_count=1)
+                self._channel.queue_declare(
+                    queue=self._queue, durable=True, exclusive=False,
+                    auto_delete=False)
+
+                # Listen on the queue associated with this participant
+                # Don't auto_ack - wait until the msg is actually
+                # processed
+
+                # no_ack means "I will not ack" ... so if no_ack is
+                # true then "I will not ack - so pika should ack for
+                # me" ie turn auto-ack on - this is stupid wording and
+                # has been renamed auto-ack in newer pika versions.
+                self._channel.basic_consume(
+                    queue=self._queue,
+                    no_ack=False,
+                    consumer_callback=self.workitem_callback)
+
+                try:
+                    self._channel.start_consuming()
+                except pika.exceptions.ConnectionClosed:
+                    self.log.warning('Connection was closed. Recovering in 5s')
+                    self._channel = None  # Ensure we can't accidentally use it
+                    time.sleep(5)
+                except KeyboardInterrupt:
+                    self._channel.stop_consuming()
+
+                    self._connection.close()
+                    break
+            except Exception as e:
+                # some connection error - reconnect
+                self.log.warning("Connection problem - reconnect in 5s : %s")
+                self.log.debug(e)
+                time.sleep(5)
+                pass
+
+        # Broke out of the loop
+        self._running = False
+        self.log.info('Exiting cleanly')
 
     def finish(self):
         """
         Closes channel and connection
         """
-        if self._chan and self._chan.is_open:
+        if self._channel and self._channel.is_open:
             # Cancel the consumer so that we don't receive more messages
-            self._chan.basic_cancel(self._consumer_tag)
+            self._channel.basic_cancel(self._consumer_tag)
         self._running = False
-
-    def reply_to_engine(self, workitem=None):
-        """
-        When the job is complete the workitem is passed back to the
-        ruote engine.  The consume() method should set the
-        workitem.result() if required.
-        """
-        if not (self._chan and self._chan.is_open):
-            raise RuntimeError("AMQP channel not open")
-        if not workitem:
-            workitem = self.workitem
-        msg = amqp.Message(json.dumps(workitem.to_h()))
-        # delivery_mode=2 is persistent
-        msg.properties["delivery_mode"] = 2
-
-        # Publish the message.
-        # Notice that this is sent to the anonymous/'' exchange (which is
-        # different to 'amq.direct') with a routing_key for the queue
-        self._chan.basic_publish(msg, exchange='',
-                                 routing_key='ruote_workitems')
