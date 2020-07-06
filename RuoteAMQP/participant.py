@@ -104,7 +104,7 @@ class ConsumerThread(Thread):
                            (self.workitem.participant_name,
                             self.workitem.wfid,
                             self.workitem.wf_name))
-            self.log.debug(format_block(traceback.format_exc()))
+            self.log.error(format_block(traceback.format_exc()))
             self.exception = exobj
             self.trace = traceback.extract_tb(sys.exc_info()[2])
 
@@ -136,10 +136,12 @@ class Participant(object):
                  amqp_host="localhost", amqp_user="ruote",
                  amqp_pass="ruote", amqp_vhost="ruote"):
 
+        port = 5672
         if ":" in amqp_host:
             (amqp_host, port) = amqp_host.split(":")
         self._conn_params = dict(
             host=amqp_host,
+            port=port,
             virtual_host=amqp_vhost,
             heartbeat=5,
             credentials=pika.PlainCredentials(amqp_user, amqp_pass)

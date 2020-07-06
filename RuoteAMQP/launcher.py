@@ -37,17 +37,21 @@ class Launcher(object):
         if conn is not None:
             self.conn = conn
         else:
+            port = 5672
+            if ":" in amqp_host:
+                (amqp_host, port) = amqp_host.split(":")
             self.host = amqp_host
             self.user = amqp_user
             self.pw = amqp_pass
             self.vhost = amqp_vhost
             self._conn_params = dict(
                 host=amqp_host,
+                port=port,
                 virtual_host=amqp_vhost,
                 heartbeat=5,
                 credentials=pika.PlainCredentials(amqp_user, amqp_pass)
             )
-            self.conn = pika.BlockingConnection(self._conn_params)
+            self.conn = pika.BlockingConnection(pika.ConnectionParameters(**self._conn_params))
 
         if self.conn is None:
             raise Exception(f"Could not connect to "
