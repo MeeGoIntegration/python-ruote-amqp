@@ -1,17 +1,17 @@
 Summary: Python Ruote/AMQP client
 Name: python3-ruote-amqp
-Version: 2.4.0
+Version: 3.0.0
 Release: 1
 Source0: %{name}-%{version}.tar.gz
-License: UNKNOWN
+License: GPLv2
 Group: Development/Libraries
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 Prefix: %{_prefix}
 BuildRequires: python3
 BuildRequires: python3-setuptools
 BuildArch: noarch
-Vendor: David Greaves <david@dgreaves.com>
-Url: http://github.com/lbt/ruote-amqp-pyclient
+Vendor: David Greaves <david.greaves@jollamobile.com>
+Url: http://github.com/MeegoIntegration/python-ruote-amqp
 
 %description
 UNKNOWN
