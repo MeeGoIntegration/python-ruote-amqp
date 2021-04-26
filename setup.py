@@ -1,11 +1,6 @@
-from setuptools import setup
+#!/usr/bin/env python
+import setuptools
 
-setup(name='ruote-amqp',
-      version='1.1',
-      description='Python Ruote/AMQP client',
-      author='David Greaves',
-      author_email='david@dgreaves.com',
-      url='http://github.com/lbt/ruote-amqp-pyclient',
-      packages=['RuoteAMQP',],
-      requires=['amqplib', 'json']
-     )
+# setup() now reads setup.cfg
+if __name__ == "__main__":
+    setuptools.setup()
