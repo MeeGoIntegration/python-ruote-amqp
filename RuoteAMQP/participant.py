@@ -276,14 +276,9 @@ class Participant(object):
                 # Listen on the queue associated with this participant
                 # Don't auto_ack - wait until the msg is actually
                 # processed
-
-                # no_ack means "I will not ack" ... so if no_ack is
-                # true then "I will not ack - so pika should ack for
-                # me" ie turn auto-ack on - this is stupid wording and
-                # has been renamed auto-ack in newer pika versions.
                 self._channel.basic_consume(
                     queue=self._queue,
-                    no_ack=False,
+                    auto_ack=False,
                     consumer_callback=self.workitem_callback)
 
                 try:
