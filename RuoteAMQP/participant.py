@@ -279,7 +279,7 @@ class Participant(object):
                 self._channel.basic_consume(
                     queue=self._queue,
                     auto_ack=False,
-                    consumer_callback=self.workitem_callback)
+                    on_message_callback=self.workitem_callback)
 
                 try:
                     self._channel.start_consuming()
