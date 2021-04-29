@@ -311,3 +311,6 @@ class Participant(object):
             # Cancel the consumer so that we don't receive more messages
             self._channel.basic_cancel(self._consumer_tag)
         self._running = False
+
+    def running(self):
+        return self._running
