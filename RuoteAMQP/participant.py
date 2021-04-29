@@ -163,6 +163,19 @@ class Participant(object):
         """
         pass
 
+    def cancel(self, workitem):
+        """
+        Override the cancel(workitem) method in a subclass to respond to a
+        cancel message.
+        """
+        self.log.warning("Ignoring a cancel message")
+
+    def stop(self):
+        """
+        Override the stop() method in a subclass to cleanly shutdown
+        """
+        self.log.warning("Exiting via default Participant.stop()")
+
     # Handle the message
     def workitem_callback(self, chan, method, properties, body):
         """
@@ -193,7 +206,7 @@ class Participant(object):
             self.consumer.start()
             self.log.info("Consumer running")
         else:
-            self.log.warning("Ignoring a cancel message")
+            self.cancel(workitem)
             self._ack_message_cb(tag)
 
     # This method is called from the worker thread
@@ -253,7 +266,8 @@ class Participant(object):
         if self._running:
             raise RuntimeError("Participant already running")
 
-        while True:
+        self._running = True
+        while self._running:
             try:
                 self._connection = pika.BlockingConnection(
                     pika.ConnectionParameters(**self._conn_params))
@@ -300,16 +314,17 @@ class Participant(object):
                 pass
 
         # Broke out of the loop
-        self._running = False
         self.log.info('Exiting cleanly')
 
     def finish(self):
         """
-        Closes channel and connection
+        Call finish() to close the channel and connection and exit cleanly.
+        This invokes the die() callback which can be overridden to clean up.
         """
         if self._channel and self._channel.is_open:
             # Cancel the consumer so that we don't receive more messages
             self._channel.basic_cancel(self._consumer_tag)
+        self.stop()
         self._running = False
 
     def running(self):
