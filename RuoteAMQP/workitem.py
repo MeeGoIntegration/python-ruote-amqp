@@ -51,6 +51,9 @@ class DictAttrProxy(object):
     def as_dict(self):
         return self._d
 
+    def __repr__(self):
+        return self._d.__repr__()
+
 
 class FlowExpressionId(object):
     """
