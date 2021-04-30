@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from amqplib import client_0_8 as amqp
+import pika
 
 try:
     import json
@@ -37,24 +37,29 @@ class Launcher(object):
         if conn is not None:
             self.conn = conn
         else:
+            port = 5672
+            if ":" in amqp_host:
+                (amqp_host, port) = amqp_host.split(":")
             self.host = amqp_host
             self.user = amqp_user
             self.pw = amqp_pass
             self.vhost = amqp_vhost
-            self.conn = amqp.Connection(host=self.host,
-                                        userid=self.user,
-                                        password=self.pw,
-                                        virtual_host=self.vhost,
-                                        insist=False)
+            self._conn_params = dict(
+                host=amqp_host,
+                port=port,
+                virtual_host=amqp_vhost,
+                heartbeat=5,
+                credentials=pika.PlainCredentials(amqp_user, amqp_pass)
+            )
+            self.conn = pika.BlockingConnection(pika.ConnectionParameters(**self._conn_params))
+
         if self.conn is None:
-            raise Exception("No connection")
+            raise Exception(f"Could not connect to "
+                            "amqp:{self.host}/{self.vhost}")
         self.chan = self.conn.channel()
         if self.chan is None:
-            raise Exception("No channel")
-
-#        # Currently ruote-amqp uses the anonymous direct exchange
-#        self.chan.exchange_declare(exchange="", type="direct", durable=True,
-#                              auto_delete=False)
+            raise Exception("Could not get a channel on "
+                            "amqp:{self.host}/{self.vhost}")
 
     def launch(self, process, fields=None, variables=None):
         """
@@ -66,14 +71,15 @@ class Launcher(object):
             raise TypeError("variables should be type dict")
         pdef = {
             "definition": process,
-            "fields" : fields,
-            "variables" : variables
+            "fields": fields,
+            "variables": variables
             }
         # Encode the message as json
-        msg = amqp.Message(json.dumps(pdef))
+        msg = json.dumps(pdef)
         # delivery_mode=2 is persistent
-        msg.properties["delivery_mode"] = 2
-
         # Publish the message.
-        self.chan.basic_publish(msg, exchange='',
-                                routing_key='ruote_workitems')
+        self.chan.basic_publish('',  # Exchange
+                                'ruote_workitems',  # Routing key
+                                msg,
+                                pika.BasicProperties(content_type='text/plain',
+                                                     delivery_mode=2))

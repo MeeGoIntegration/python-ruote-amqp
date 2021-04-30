@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 try:
     import json
 except ImportError:
@@ -44,7 +42,7 @@ class DictAttrProxy(object):
         return self._d.__iter__()
 
     def __next__(self):
-        r = self._d.next()
+        r = next(self._d)
         if type(r) is dict:
             return DictAttrProxy(r)
         return r
@@ -52,6 +50,9 @@ class DictAttrProxy(object):
     # and if we want to use this syntax to get at a nested dict:
     def as_dict(self):
         return self._d
+
+    def __repr__(self):
+        return self._d.__repr__()
 
 
 class FlowExpressionId(object):
@@ -190,7 +191,7 @@ class Workitem(object):
         """
         try:
             return self._h['participant_name']
-        except:
+        except IndexError:
             return None
 
     @property
@@ -198,7 +199,7 @@ class Workitem(object):
         "Returns the payload, ie the fields hash."
         try:
             return DictAttrProxy(self._h['fields'])
-        except:
+        except IndexError:
             return DictAttrProxy({})
 
     @fields.setter
@@ -235,7 +236,7 @@ class Workitem(object):
         try:
             if self.params.forget:
                 return True
-        except:
+        except Exception:
             pass
         return False
 
@@ -362,7 +363,7 @@ class Workitem(object):
         """
         try:
             return DictAttrProxy(self._h['fields']['params'])
-        except:
+        except IndexError:
             return DictAttrProxy({})
 
     def dump(self):
