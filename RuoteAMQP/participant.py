@@ -120,7 +120,7 @@ class ConsumerThread(Thread):
             self.__participant.reply_to_engine_from_thread(self.workitem)
 
 
-class Participant(object):
+class Participant:
     """
     A Participant will do work in a Ruote process. Participant is
     essentially abstract and must be subclassed to provide a useful
