@@ -13,13 +13,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import json
+import logging
 import pika
 
-try:
-    import json
-except ImportError:
-    import simplejson as json
-
+logger = logging.getLogger(__name__)
 
 class Launcher(object):
     """
@@ -76,6 +74,7 @@ class Launcher(object):
             }
         # Encode the message as json
         msg = json.dumps(pdef)
+        logger.debug(f"Launching {pdef}")
         # delivery_mode=2 is persistent
         # Publish the message.
         self.chan.basic_publish('',  # Exchange
