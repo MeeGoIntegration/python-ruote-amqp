@@ -51,6 +51,9 @@ class DictAttrProxy(object):
     def as_dict(self):
         return self._d
 
+    def __getitem__(self, item):
+        return self._d[item]
+
     def __repr__(self):
         return self._d.__repr__()
 
