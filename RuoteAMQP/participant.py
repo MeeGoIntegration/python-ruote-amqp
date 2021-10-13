@@ -308,7 +308,7 @@ class Participant:
                     break
             except Exception as e:
                 # some connection error - reconnect
-                self.log.warning("Connection problem - reconnect in 5s : %s")
+                self.log.warning("Connection problem - reconnect in 5s : %s", e)
                 self.log.debug(e)
                 time.sleep(5)
                 pass
