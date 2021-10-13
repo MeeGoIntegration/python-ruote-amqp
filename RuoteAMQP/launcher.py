@@ -82,3 +82,20 @@ class Launcher(object):
                                 msg,
                                 pika.BasicProperties(content_type='text/plain',
                                                      delivery_mode=2))
+
+    def resume(self, workitem : "Workitem" = None, msg=None):
+        """
+        Resume a stored workitem
+        """
+        if workitem:
+            msg = workitem.dump()
+        if msg is None:
+            raise Exception("Either workitem or msg must be provided")
+        # delivery_mode=2 is persistent
+        # Publish the message.
+        self.chan.basic_publish('',  # Exchange
+                                'ruote_workitems',  # Routing key
+                                body=msg,
+                                properties=pika.BasicProperties(
+                                    content_type='text/plain',
+                                    delivery_mode=2))
