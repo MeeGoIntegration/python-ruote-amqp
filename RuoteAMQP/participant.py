@@ -109,7 +109,9 @@ class ConsumerThread(Thread):
             self.trace = traceback.extract_tb(sys.exc_info()[2])
 
             self.workitem.error = {
-                "class": "BOSS::RemoteError",
+                # This should be BOSS:RemoteError but BOSS got reverted
+                # "class": "BOSS::RemoteError",
+                "class": "BOSS::StandardError",
                 "message": format_exception(self.exception),
                 "trace": format_ruby_backtrace(self.trace)}
 
