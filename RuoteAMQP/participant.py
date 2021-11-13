@@ -111,7 +111,7 @@ class ConsumerThread(Thread):
             self.workitem.error = {
                 # This should be BOSS:RemoteError but BOSS got reverted
                 # "class": "BOSS::RemoteError",
-                "class": "BOSS::StandardError",
+                "class": "Ruote::Amqp::RemoteError",
                 "message": format_exception(self.exception),
                 "trace": format_ruby_backtrace(self.trace)}
 
