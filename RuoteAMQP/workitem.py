@@ -54,6 +54,9 @@ class DictAttrProxy(object):
     def __getitem__(self, item):
         return self._d[item]
 
+    def __setitem__(self, item, value):
+        self._d[item] = value
+
     def __repr__(self):
         return self._d.__repr__()
 
@@ -135,7 +138,10 @@ class Workitem(object):
     """
 
     def __init__(self, msg):
-        self._h = json.loads(msg)
+        if type(msg) is dict:
+            self._h = msg
+        else:
+            self._h = json.loads(msg)
         self._fei = FlowExpressionId(self._h['fei'])
 
     def to_h(self):
@@ -372,3 +378,9 @@ class Workitem(object):
     def dump(self):
         "A useful and consistent dump format"
         return json.dumps(self._h, sort_keys=True, indent=4)
+
+    def __str__(self):
+        return self.dump()
+
+    def __unicode__(self):
+        return self.dump()
